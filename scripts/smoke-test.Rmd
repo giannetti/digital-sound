@@ -1,0 +1,153 @@
+---
+title: "smoke test"
+author: "francesca giannetti"
+date: "8/16/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About
+
+The purpose of this file is:
+1. evaluate how much data was lost by not using the base URL of British Library Sounds as one of the search strings in the TAGS tool;
+2. determine if the lost data is significant enough to skew analysis results.
+
+Code adapted from: Silge, J. and Robinson, D. ["Case study: comparing Twitter archives"](http://tidytextmining.com/twitter.html) *Text Mining with R*.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# load libraries
+library(tidyverse)
+
+# load data
+soundarchive <- read.delim("data/bls_v6.0ns.tsv", encoding = "UTF-8", sep = "\t", quote = "", header = T, stringsAsFactors = F)
+soundarchive_test <- read.delim("data/bls_test.tsv", encoding = "UTF-8", sep = "\t", quote = "", header = T, stringsAsFactors = F)
+
+# create column timestamp
+soundarchive$timestamp <- as.POSIXct(soundarchive$time, format= "%d/%m/%Y %H:%M:%S", tz="GMT")
+soundarchive_test$timestamp <- as.POSIXct(soundarchive_test$time, format= "%d/%m/%Y %H:%M:%S", tz="GMT")
+
+# remove dups
+soundarchive_dedup <- subset(soundarchive, !duplicated(soundarchive$id_str))
+soundarchive_test_dedup <- subset(soundarchive_test, !duplicated(soundarchive_test$id_str))
+
+# create subsets for ten-day time window
+sample_1 <- soundarchive_dedup %>% 
+  filter(timestamp > as.POSIXlt("2017-08-06 02:00:00", tz="GMT"),
+         timestamp < as.POSIXlt("2017-08-16 17:00:00", tz="GMT")) %>% 
+  select(text,timestamp,from_user)
+
+sample_2 <- soundarchive_test_dedup %>% 
+  filter(timestamp > as.POSIXlt("2017-08-06 02:00:00", tz="GMT"),
+         timestamp < as.POSIXlt("2017-08-16 17:00:00", tz="GMT")) %>% 
+  select(text,timestamp,from_user)
+
+# bind them together 
+tweets <- bind_rows(sample_1 %>% 
+                      mutate(dataset = "old"),
+                    sample_2 %>% 
+                      mutate(dataset = "test"))
+```
+
+## Histogram
+
+The tweet pattern for the old and test datasets is similar but reveals that there is some missing data in the old dataset. 
+
+```{r tweets, echo=FALSE}
+ggplot(tweets, aes(x = timestamp, fill = dataset)) +
+  geom_histogram(position = "identity", bins = 20, show.legend = FALSE) +
+  facet_wrap(~dataset, ncol = 1)
+
+```
+
+## Word Frequencies
+
+Use [tidytext](http://dx.doi.org/10.21105/joss.00037) to process the text of the tweets in both datasets. 
+ 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidytext)
+library(stringr)
+
+replace_reg <- "https://t.co/[A-Za-z\\d]+|http://[A-Za-z\\d]+|&amp;|&lt;|&gt;|RT|https"
+unnest_reg <- "([^A-Za-z_\\d#@']|'(?![A-Za-z_\\d#@]))"
+tidy_tweets <- tweets %>% 
+  mutate(text = str_replace_all(text, replace_reg, "")) %>%
+  unnest_tokens(word, text, token = "regex", pattern = unnest_reg) %>%
+  filter(!word %in% stop_words$word,
+         str_detect(word, "[a-z]"))
+
+# calculate word frequencies for each dataset
+frequency <- tidy_tweets %>% 
+  group_by(dataset) %>% 
+  count(word, sort = TRUE) %>% 
+  left_join(tidy_tweets %>% 
+              group_by(dataset) %>% 
+              summarise(total = n())) %>% 
+  mutate(freq = n/total)
+
+frequency <- frequency %>% 
+  select(dataset, word, freq) %>% 
+  spread(dataset, freq) %>% 
+  arrange(test, old)
+```
+
+## Frequency Plot
+
+All terms hover close to the reference line, indicating that both the old and test datasets use the same words at the higher frequencies.
+
+```{r frequency, echo=FALSE, message=FALSE, warning=FALSE}
+library(scales)
+ggplot(frequency, aes(old, test)) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  geom_abline(color = "red")
+ 
+```
+
+## Comparing word usage
+
+These are the words that are likely to come from both the old and test datasets.
+
+```{r word_ratios, echo=FALSE, message=FALSE, warning=FALSE}
+library(knitr)
+
+word_ratios <- tidy_tweets %>%
+  filter(!str_detect(word, "^@")) %>%
+  count(word, dataset) %>%
+  filter(sum(n) >= 10) %>%
+  ungroup() %>%
+  spread(dataset, n, fill = 0) %>%
+  mutate_if(is.numeric, funs((. + 1) / sum(. + 1))) %>%
+  mutate(logratio = log(test / old)) %>%
+  arrange(desc(logratio))
+
+word_ratios %>% 
+  arrange(abs(logratio)) %>%
+  top_n(10) %>% 
+  kable()
+```
+
+## Distinctive Words
+
+The interesting thing one observes with the most distinctive words test is that there are words that are showing up in the old dataset that are **not present** in the test dataset, even though the test dataset was created using a query that contains the old query. Given that data is missing from both datasets, this reinforces the point that Search API provides a *sample* of tweets and not a complete dataset for the period examined. 
+
+```{r echo=FALSE}
+word_ratios %>%
+  group_by(logratio < 0) %>%
+  top_n(15, abs(logratio)) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, logratio)) %>% 
+  ggplot(aes(word, logratio, fill = logratio < 0)) +
+  geom_col() +
+  coord_flip() +
+  ylab("log odds ratio (Test/Old)") +
+  scale_fill_discrete(name = "", labels = c("Test", "Old"))
+
+```
+
