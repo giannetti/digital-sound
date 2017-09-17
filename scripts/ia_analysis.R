@@ -46,7 +46,7 @@ library(mallet)
 # devtools::install_github("agoldst/litdata")
 library(litdata)
 
-# make one giant corpus document out of all tweets
+# read in 30 tweet documents
 alltweets <- readLines("ia_no_rts.txt") 
 alltweets_id <- as.character(seq_along(alltweets))
 token_regex <- "\\w['\\w]*\\w|\\w"
@@ -121,7 +121,6 @@ labeled_top_docs <- doc_topics %>%
 doc_topics$doc <- as.numeric(doc_topics$doc)
 
 topic_series_plot <- doc_topics %>% group_by(doc) %>%
-  # proportions, recall
   mutate(topic_proportion=count / sum(count)) %>%
   ggplot(aes(doc, topic_proportion)) +
   facet_wrap(~ topic, ncol=3) +
@@ -138,10 +137,10 @@ p3 <- topic_series_plot +
         panel.grid.major.x=element_blank(),
         panel.grid.minor.x=element_blank())
 
+# print  figures
 ggsave(paste0("fig3.png"), 
        p3, width = 8, height = 5)
 
-# TIFF
 tiff("fig3.tiff", width = 8, height = 5, units = 'in', res = 600)
 p3
 dev.off()
