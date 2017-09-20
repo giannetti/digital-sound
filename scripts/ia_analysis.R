@@ -46,17 +46,13 @@ library(mallet)
 # devtools::install_github("agoldst/litdata")
 library(litdata)
 
-# read in 30 tweet documents
+# read in 30 docs of tweets
 alltweets <- readLines("ia_no_rts.txt") 
 alltweets_id <- as.character(seq_along(alltweets))
 token_regex <- "\\w['\\w]*\\w|\\w"
 mallet.instances <- mallet.import(id.array = alltweets_id, text.array = alltweets, stoplist.file = "stopwords.txt", preserve.case = F, token.regexp = token_regex)
 n.topics <- 6
 topic.model <- MalletLDA(n.topics)
-
-# save instance of topic model
-mallet.instances.file <- "tweets.mallet"
-write_mallet_instances(mallet.instances)
 
 # random number seed
 seed <- 41
@@ -123,7 +119,7 @@ doc_topics$doc <- as.numeric(doc_topics$doc)
 topic_series_plot <- doc_topics %>% group_by(doc) %>%
   mutate(topic_proportion=count / sum(count)) %>%
   ggplot(aes(doc, topic_proportion)) +
-  facet_wrap(~ topic, ncol=3) +
+  facet_wrap(~ topic, ncol=1) +
   xlab("") +
   ylab("Topic proportion")
 
@@ -137,7 +133,7 @@ p3 <- topic_series_plot +
         panel.grid.major.x=element_blank(),
         panel.grid.minor.x=element_blank())
 
-# print  figures
+# save figures
 ggsave(paste0("fig3.png"), 
        p3, width = 8, height = 5)
 
@@ -145,7 +141,7 @@ tiff("fig3.tiff", width = 8, height = 5, units = 'in', res = 600)
 p3
 dev.off()
 
-# IA Mopidy and Grateful Dead topics
+# IA Mopidy, Grateful Dead, and @ANBOLIVIA topics
 ia_topic_plot <- doc_topics %>% 
   group_by(doc) %>%
   mutate(topic_proportion=count / sum(count))
@@ -158,6 +154,10 @@ dead_plot <- ggplot(data=subset(ia_topic_plot, topic==6), aes(doc, topic_proport
   xlab("") +
   ylab("Topic proportion")
 
+anbolivia_plot <- ggplot(data=subset(ia_topic_plot, topic==2), aes(doc, topic_proportion)) +
+  xlab("") +
+  ylab("Topic proportion")
+
 p4 <- mopidy_plot +
   geom_bar(stat="identity", width=0.5, fill="gray80") +
   geom_smooth(method="loess", se=FALSE, color="black", fill="grey60", span=0.5) +
@@ -167,6 +167,8 @@ p4 <- mopidy_plot +
         panel.grid.major.x=element_blank(),
         panel.grid.minor.x=element_blank()) +
   ggtitle(topic_labels$label[5])
+
+p4 <- p4 + scale_x_continuous(limits=c(0, 30))
 
 # save figures
 ggsave(paste0("fig4b.png"), 
@@ -192,6 +194,31 @@ ggsave(paste0("fig5.png"),
 
 tiff("fig5.tiff", width = 8, height = 4, units = 'in', res = 600)
 p5
+dev.off()
+
+
+p6 <- anbolivia_plot +
+  geom_bar(stat="identity", width=0.5, fill="gray80") +
+  geom_smooth(method="loess", se=FALSE, color="black", fill="grey60", span=0.5) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        panel.grid.major.x=element_blank(),
+        panel.grid.minor.x=element_blank()) +
+  ggtitle(topic_labels$label[2])
+
+p6 <- p6 + scale_x_continuous(limits=c(0, 30))
+
+library(grid)
+library(gridExtra)
+p <- rbind(ggplotGrob(p6), ggplotGrob(p4), ggplotGrob(p5), size = "last")
+grid.newpage() 
+grid.draw(p)
+
+# save figs
+ggsave(paste0("fig6.png"), plot = grid.draw(p8), width = 8, height = 6)
+tiff("fig6.tiff", width = 8, height = 6, units = 'in', res = 600)
+grid.draw(p8)
 dev.off()
 
 # having a look more than 10 words out into topic
