@@ -27,7 +27,7 @@ soundarchive.dedup <- subset(soundarchive, !duplicated(soundarchive$id_str))
 ubuweb.dedup <- subset(ubuweb, !duplicated(ubuweb$id_str))
 
 ## Stack them all together, add a formatted date column, and sort by time
-tweets.df <- rbind(eu_sounds.dedup, internetarchive.dedup, librarycongress.dedup, pennsound.dedup, soundarchive.dedup, ubuweb.dedup, header = TRUE)
+tweets.df <- rbind(eu_sounds.dedup, internetarchive.dedup, pennsound.dedup, soundarchive.dedup, ubuweb.dedup, header = TRUE)
 tweets.df$converted_date <- as.Date(tweets.df$time, format= "%d/%m/%Y %H:%M:%S")
 tweets.sorted.df <- tweets.df[order(as.POSIXlt(tweets.df$time, format= "%d/%m/%Y %H:%M:%S")), ]
 
