@@ -3,6 +3,9 @@ Data and scripts used for the article "A Twitter Case Study for Assessing Digita
 
 Data include only the tweet id values. One can "hydrate" these ids (retrieve the corresponding JSON data) using Ed Summers's excellent [twarc](https://github.com/DocNow/twarc) Python library. Upon request, I will also supply the complete dataset.
 
+Results described in:
+Giannetti, Francesca. “A Twitter Case Study for Assessing Digital Sound.” *Journal of the Association for Information Science and Technology* (2018). [doi:10.1002/asi.23990](http://dx.doi.org/10.1002/asi.23990). [Preprint](https://doi.org/doi:10.7282/T37P92F7).
+
 -----
 
 ## data
